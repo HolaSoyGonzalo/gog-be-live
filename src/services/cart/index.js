@@ -1,6 +1,9 @@
 const express = require("express");
 const fs = require("fs-extra");
 const path = require("path");
+const { pipeline } = require("stream");
+
+const { Transform } = require("json2csv");
 
 const router = express.Router();
 
@@ -16,6 +19,24 @@ const readFile = async (path) => {
 const writeFile = async (content) => {
   await fs.writeFile(cartFilePath, JSON.stringify(content));
 };
+
+//CSV EXPORT
+router.get("/csv/export", async (req, res, next) => {
+  //1-Source === cart.json
+  const source = fs.createReadStream(cartFilePath);
+  //2-Transform === json2csv
+  const transformStreamJSONtoCSV = new Transform({
+    fields: ["title", "genre", "price", "id"],
+  });
+  //3-Destination === response.object (stream)
+  //Add a special header to permit the "save on disk" window to be opened by the browser
+  res.setHeader("Content-Disposition", "attachment; filename=export.csv");
+  pipeline(source, transformStreamJSONtoCSV, res, (err) => {
+    if (err) {
+      next(err);
+    }
+  });
+});
 
 //RETRIEVE
 router.get("/", async (req, res, next) => {
@@ -51,7 +72,6 @@ router.post("/:id", async (req, res, next) => {
   }
 });
 //REMOVE
-
 router.delete("/:id", async (req, res, next) => {
   //Get All elements from the cart
   const currentCart = await readFile(cartFilePath);
